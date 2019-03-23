@@ -284,8 +284,7 @@ struct MurmurHash3_32_4seed
     }
 }
 string putElementStrMix4(){
-    return "__vector(uint[4]) block_arr;\n"~
-    "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;\n"~
+    return "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;\n"~
     "block_arr = block_arr * c1;\n"~
     "block_arr = ((block_arr << ROTSL15) | (block_arr >> ROTSR15));\n"~
     "block_arr = block_arr * c2;\n"~
@@ -352,6 +351,7 @@ auto murmurhash3_32_4seed(ulong k)(string str,uint seed1,uint seed2,uint seed3,u
     __vector(uint[4]) ROTSL13 = [13,13,13,13];
     __vector(uint[4]) ROTSR13 = [(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13];
     __vector(uint[4]) h1;
+    __vector(uint[4]) block_arr;
     uint block;
     h1[0]=seed1;h1[1]=seed2;h1[2]=seed3;h1[3]=seed4;
     mixin(unrollPutElement4(k/4));
@@ -489,8 +489,7 @@ struct MurmurHash3_32_8seed
     }
 }
 string putElementStrMix8(){
-    return "__vector(uint[8]) block_arr;\n"~
-    "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;block_arr[4]=block;block_arr[5]=block;block_arr[6]=block;block_arr[7]=block;\n"~
+    return "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;block_arr[4]=block;block_arr[5]=block;block_arr[6]=block;block_arr[7]=block;\n"~
     "block_arr = block_arr * c1;\n"~
     "block_arr = ((block_arr << ROTSL15) | (block_arr >> ROTSR15));\n"~
     "block_arr = block_arr * c2;\n"~
@@ -557,6 +556,7 @@ auto murmurhash3_32_8seed(ulong k)(string str,uint seed1,uint seed2,uint seed3,u
     __vector(uint[8]) ROTSL13 = [13,13,13,13,13,13,13,13];
     __vector(uint[8]) ROTSR13 = [(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13];
     __vector(uint[8]) h1;
+    __vector(uint[8]) block_arr;
     uint block;
     h1[0]=seed1;h1[1]=seed2;h1[2]=seed3;h1[3]=seed4;h1[4]=seed5;h1[5]=seed6;h1[6]=seed7;h1[7]=seed8;
     mixin(unrollPutElement8(k/4));
