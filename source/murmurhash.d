@@ -1,218 +1,3 @@
-struct MurmurHash3_128_32
-{
-    enum blockSize = 128; // Number of bits of the hashed value.
-    size_t element_count; // The number of full elements pushed, this is used for finalization.
-    private enum uint c1 = 0x239b961b;
-    private enum uint c2 = 0xab0e9789;
-    private enum uint c3 = 0x38b34ae5;
-    private enum uint c4 = 0xa1e38b93;
-    private uint h4, h3, h2, h1;
-
-    alias Element = uint[4]; /// The element type for 128-bit implementation.
-
-    this(uint seed4, uint seed3, uint seed2, uint seed1) pure nothrow @nogc
-    {
-        h4 = seed4;
-        h3 = seed3;
-        h2 = seed2;
-        h1 = seed1;
-    }
-
-    this(uint seed) pure nothrow @nogc
-    {
-        h4 = h3 = h2 = h1 = seed;
-    }
-
-    /++
-    Adds a single Element of data without increasing element_count.
-    Make sure to increase `element_count` by `Element.sizeof` for each call to `putElement`.
-    +/
-    void putElement(Element block) pure nothrow @nogc
-    {
-        h1 = update(h1, block[0], h2, c1, c2, 15, 19, 0x561ccd1bU);
-        h2 = update(h2, block[1], h3, c2, c3, 16, 17, 0x0bcaa747U);
-        h3 = update(h3, block[2], h4, c3, c4, 17, 15, 0x96cd1c35U);
-        h4 = update(h4, block[3], h1, c4, c1, 18, 13, 0x32ac3b17U);
-    }
-
-    /// Put remainder bytes. This must be called only once after `putElement` and before `finalize`.
-    void putRemainder(scope const(ubyte[]) data...) pure nothrow @nogc
-    {
-        assert(data.length < Element.sizeof);
-        assert(data.length >= 0);
-        element_count += data.length;
-        uint k1 = 0;
-        uint k2 = 0;
-        uint k3 = 0;
-        uint k4 = 0;
-
-        final switch (data.length & 15)
-        {
-        case 15:
-            k4 ^= data[14] << 16;
-            goto case;
-        case 14:
-            k4 ^= data[13] << 8;
-            goto case;
-        case 13:
-            k4 ^= data[12] << 0;
-            h4 ^= shuffle(k4, c4, c1, 18);
-            goto case;
-        case 12:
-            k3 ^= data[11] << 24;
-            goto case;
-        case 11:
-            k3 ^= data[10] << 16;
-            goto case;
-        case 10:
-            k3 ^= data[9] << 8;
-            goto case;
-        case 9:
-            k3 ^= data[8] << 0;
-            h3 ^= shuffle(k3, c3, c4, 17);
-            goto case;
-        case 8:
-            k2 ^= data[7] << 24;
-            goto case;
-        case 7:
-            k2 ^= data[6] << 16;
-            goto case;
-        case 6:
-            k2 ^= data[5] << 8;
-            goto case;
-        case 5:
-            k2 ^= data[4] << 0;
-            h2 ^= shuffle(k2, c2, c3, 16);
-            goto case;
-        case 4:
-            k1 ^= data[3] << 24;
-            goto case;
-        case 3:
-            k1 ^= data[2] << 16;
-            goto case;
-        case 2:
-            k1 ^= data[1] << 8;
-            goto case;
-        case 1:
-            k1 ^= data[0] << 0;
-            h1 ^= shuffle(k1, c1, c2, 15);
-            goto case;
-        case 0:
-        }
-    }
-
-    /// Incorporate `element_count` and finalizes the hash.
-    void finalize() pure nothrow @nogc
-    {
-        h1 ^= element_count;
-        h2 ^= element_count;
-        h3 ^= element_count;
-        h4 ^= element_count;
-
-        h1 += h2;
-        h1 += h3;
-        h1 += h4;
-        h2 += h1;
-        h3 += h1;
-        h4 += h1;
-
-        h1 = fmix(h1);
-        h2 = fmix(h2);
-        h3 = fmix(h3);
-        h4 = fmix(h4);
-
-        h1 += h2;
-        h1 += h3;
-        h1 += h4;
-        h2 += h1;
-        h3 += h1;
-        h4 += h1;
-    }
-
-    /// Returns the hash as an uint[4] value.
-    Element get() pure nothrow @nogc
-    {
-        return [h1, h2, h3, h4];
-    }
-
-    /// Returns the current hashed value as an ubyte array.
-    ubyte[16] getBytes() pure nothrow @nogc
-    {
-        return cast(typeof(return)) get();
-    }
-
-    /++
-    Pushes an array of elements at once. It is more efficient to push as much data as possible in a single call.
-    On platforms that do not support unaligned reads (MIPS or old ARM chips), the compiler may produce slower code to ensure correctness.
-    +/
-    void putElements(scope const(Element[]) elements...) pure nothrow @nogc
-    {
-        foreach (const block; elements)
-        {
-            putElement(block);
-        }
-        element_count += elements.length * Element.sizeof;
-    }
-
-    //-------------------------------------------------------------------------
-    // MurmurHash3 utils
-    //-------------------------------------------------------------------------
-
-    private T rotl(T)(T x, uint y)
-    in
-    {
-        import std.traits : isUnsigned;
-
-        static assert(isUnsigned!T);
-        debug assert(y >= 0 && y <= (T.sizeof * 8));
-    }
-    do
-    {
-        return ((x << y) | (x >> ((T.sizeof * 8) - y)));
-    }
-
-    private T shuffle(T)(T k, T c1, T c2, ubyte r1)
-    {
-        import std.traits : isUnsigned;
-
-        static assert(isUnsigned!T);
-        k *= c1;
-        k = rotl(k, r1);
-        k *= c2;
-        return k;
-    }
-
-    private T update(T)(ref T h, T k, T mixWith, T c1, T c2, ubyte r1, ubyte r2, T n)
-    {
-        import std.traits : isUnsigned;
-
-        static assert(isUnsigned!T);
-        h ^= shuffle(k, c1, c2, r1);
-        h = rotl(h, r2);
-        h += mixWith;
-        return h * 5 + n;
-    }
-
-    private uint fmix(uint h) pure nothrow @nogc
-    {
-        h ^= h >> 16;
-        h *= 0x85ebca6b;
-        h ^= h >> 13;
-        h *= 0xc2b2ae35;
-        h ^= h >> 16;
-        return h;
-    }
-
-    private ulong fmix(ulong k) pure nothrow @nogc
-    {
-        k ^= k >> 33;
-        k *= 0xff51afd7ed558ccd;
-        k ^= k >> 33;
-        k *= 0xc4ceb9fe1a85ec53;
-        k ^= k >> 33;
-        return k;
-    }
-}
 struct MurmurHash3_32
 {
     enum blockSize = 32; // Number of bits of the hashed value.
@@ -319,7 +104,62 @@ struct MurmurHash3_32
         return this.get();
     }
 }
-
+string putElementStrMix(){
+    return "block *= c1;\n"~
+    "block = ((block << 15) | (block >> ((uint.sizeof * 8) - 15)));\n"~
+    "block *= c2;\n"~
+    "h1 ^=block;\n"~
+    "h1 =((h1 << 13) | (h1 >> ((uint.sizeof * 8) - 13)));\n"~
+    "h1 = h1 * 5 + 0xe6546b64U;";
+}
+string unrollPutElement(ulong n){
+    import std.conv:to;
+    string ret;
+    for(auto i=0;i<n;i++){
+        ret=ret~"block=*cast(uint*)(str["~i.to!string~"*4.."~i.to!string~"*4+4].ptr);\n"~putElementStrMix;
+    }
+    return ret;
+}
+string putRemainder(ulong n){
+    import std.conv:to;
+    string ret="uint k1 = 0;\n";
+    auto i=n%4;
+    if(i==3){
+        ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"+2] << 16;\n";
+        i--;
+    }else if(i==2){
+        ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"+1] << 8;\n";
+        i--;
+    }else if(i==1){
+        ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"];\n"~
+        "k1 *= c1;\n"~
+        "k1 = ((k1 << 15) | (k1 >> ((uint.sizeof * 8) - 15)));\n"~
+        "k1 *= c2;\n"~
+        "h1 ^= k1;\n";
+    }
+    return ret;
+}
+string finalize(ulong k) {
+    import std.conv:to;
+    return "h1 ^= "~k.to!string~";\n"~
+    "h1 ^= h1 >> 16;\n"~
+    "h1 *= 0x85ebca6b;\n"~
+    "h1 ^= h1 >> 13;\n"~
+    "h1 *= 0xc2b2ae35;\n"~
+    "h1 ^= h1 >> 16;\n";
+}
+pragma(inline,true)
+auto murmurhash3_32(ulong k)(string str,uint seed){
+    assert(str.length==k);
+    enum uint c1 = 0xcc9e2d51;
+    enum uint c2 = 0x1b873593;
+    uint h1=seed;
+    uint block;
+    mixin(unrollPutElement(k/4));
+    mixin(putRemainder(k));
+    mixin(finalize(k));
+    return h1;
+}
 struct MurmurHash3_32_4seed
 {
 
@@ -442,6 +282,82 @@ struct MurmurHash3_32_4seed
         this.finalize();
         return this.get();
     }
+}
+string putElementStrMix4(){
+    return "__vector(uint[4]) block_arr;\n"~
+    "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;\n"~
+    "block_arr = block_arr * c1;\n"~
+    "block_arr = ((block_arr << ROTSL15) | (block_arr >> ROTSR15));\n"~
+    "block_arr = block_arr * c2;\n"~
+    "h1 ^=block_arr;\n"~
+    "h1 =((h1 << ROTSL13) | (h1 >> ROTSR13));\n"~
+    "h1 = h1 * 5 + 0xe6546b64U;\n";    
+}
+string unrollPutElement4(ulong n){
+    import std.conv:to;
+    string ret;
+    for(auto i=0;i<n;i++){
+        ret=ret~"block=*cast(uint*)(str["~i.to!string~"*4.."~i.to!string~"*4+4].ptr);\n"~putElementStrMix4;
+    }
+    return ret;
+}
+string putRemainder4(ulong n)
+{
+    import std.conv:to;
+    string ret="__vector(uint[4]) k1;\n"~
+    "__vector(uint[4]) k2;\n"~
+    "uint c;\n";
+    auto i=n%4;
+    if(i==3){
+        ret~="c=cast(uint)str["~(n-n%4).to!string~"+2];\n"~
+        "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+        "k1 = k1 ^ (k2 << SL16);";
+        i--;
+    }else if(i==2){
+        ret~="c=cast(uint)str["~(n-n%4).to!string~"+1];\n"~
+        "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+        "k1 = k1 ^ (k2 << SL8);";
+        i--;
+    }else if(i==1){
+        ret~="c=cast(uint)str["~(n-n%4).to!string~"];\n"~
+        "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+        "k1 = k1 ^ k2;\n"~
+        "k1 *= c1;\n"~
+        "k1 = ((k1 << ROTSL15) | (k1 >> ROTSR15));\n"~
+        "k1 *= c2;\n"~
+        "h1 ^= k1;\n";
+    }
+    return ret;
+}
+string finalize4(ulong k) {
+    import std.conv:to;
+    return "__vector(uint[4]) e=["~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~"];\n"~
+    "h1 ^= e;\n"~
+    "h1 ^= h1 >> SL16;\n"~
+    "h1 *= 0x85ebca6b;\n"~
+    "h1 ^= h1 >> SL13;\n"~
+    "h1 *= 0xc2b2ae35;\n"~
+    "h1 ^= h1 >> SL16;\n";
+}
+pragma(inline,true)
+auto murmurhash3_32_4seed(ulong k)(string str,uint seed1,uint seed2,uint seed3,uint seed4){
+    assert(str.length==k);
+    uint c1 = 0xcc9e2d51;
+    uint c2 = 0x1b873593;
+    __vector(uint[4]) SL16 = [16,16,16,16];
+    __vector(uint[4]) SL13 = [13,13,13,13];
+    __vector(uint[4]) SL8 = [8,8,8,8];
+    __vector(uint[4]) ROTSL15 = [15,15,15,15];
+    __vector(uint[4]) ROTSR15 = [(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15];
+    __vector(uint[4]) ROTSL13 = [13,13,13,13];
+    __vector(uint[4]) ROTSR13 = [(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13];
+    __vector(uint[4]) h1;
+    uint block;
+    h1[0]=seed1;h1[1]=seed2;h1[2]=seed3;h1[3]=seed4;
+    mixin(unrollPutElement4(k/4));
+    mixin(putRemainder4(k));
+    mixin(finalize4(k));
+    return h1;
 }
 struct MurmurHash3_32_8seed
 {
@@ -572,6 +488,82 @@ struct MurmurHash3_32_8seed
         return this.get();
     }
 }
+string putElementStrMix8(){
+    return "__vector(uint[8]) block_arr;\n"~
+    "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;block_arr[4]=block;block_arr[5]=block;block_arr[6]=block;block_arr[7]=block;\n"~
+    "block_arr = block_arr * c1;\n"~
+    "block_arr = ((block_arr << ROTSL15) | (block_arr >> ROTSR15));\n"~
+    "block_arr = block_arr * c2;\n"~
+    "h1 ^=block_arr;\n"~
+    "h1 =((h1 << ROTSL13) | (h1 >> ROTSR13));\n"~
+    "h1 = h1 * 5 + 0xe6546b64U;\n";    
+}
+string unrollPutElement8(ulong n){
+    import std.conv:to;
+    string ret;
+    for(auto i=0;i<n;i++){
+        ret=ret~"block=*cast(uint*)(str["~i.to!string~"*4.."~i.to!string~"*4+4].ptr);\n"~putElementStrMix8;
+    }
+    return ret;
+}
+string putRemainder8(ulong n)
+{
+    import std.conv:to;
+    string ret="__vector(uint[8]) k1;\n"~
+    "__vector(uint[8]) k2;\n"~
+    "uint c;\n";
+    auto i=n%4;
+    if(i==3){
+        ret~="c=cast(uint)str["~(n-n%4).to!string~"+2];\n"~
+        "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+        "k1 = k1 ^ (k2 << SL16);";
+        i--;
+    }else if(i==2){
+        ret~="c=cast(uint)str["~(n-n%4).to!string~"+1];\n"~
+        "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+        "k1 = k1 ^ (k2 << SL8);";
+        i--;
+    }else if(i==1){
+        ret~="c=cast(uint)str["~(n-n%4).to!string~"];\n"~
+        "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+        "k1 = k1 ^ k2;\n"~
+        "k1 *= c1;\n"~
+        "k1 = ((k1 << ROTSL15) | (k1 >> ROTSR15));\n"~
+        "k1 *= c2;\n"~
+        "h1 ^= k1;\n";
+    }
+    return ret;
+}
+string finalize8(ulong k) {
+    import std.conv:to;
+    return "__vector(uint[8]) e=["~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~"];\n"~
+    "h1 ^= e;\n"~
+    "h1 ^= h1 >> SL16;\n"~
+    "h1 *= 0x85ebca6b;\n"~
+    "h1 ^= h1 >> SL13;\n"~
+    "h1 *= 0xc2b2ae35;\n"~
+    "h1 ^= h1 >> SL16;\n";
+}
+pragma(inline,true)
+auto murmurhash3_32_8seed(ulong k)(string str,uint seed1,uint seed2,uint seed3,uint seed4,uint seed5,uint seed6,uint seed7,uint seed8){
+    assert(str.length==k);
+    uint c1 = 0xcc9e2d51;
+    uint c2 = 0x1b873593;
+    __vector(uint[8]) SL16 = [16,16,16,16,16,16,16,16];
+    __vector(uint[8]) SL13 = [13,13,13,13,13,13,13,13];
+    __vector(uint[8]) SL8 = [8,8,8,8,8,8,8,8];
+    __vector(uint[8]) ROTSL15 = [15,15,15,15,15,15,15,15];
+    __vector(uint[8]) ROTSR15 = [(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15];
+    __vector(uint[8]) ROTSL13 = [13,13,13,13,13,13,13,13];
+    __vector(uint[8]) ROTSR13 = [(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13];
+    __vector(uint[8]) h1;
+    uint block;
+    h1[0]=seed1;h1[1]=seed2;h1[2]=seed3;h1[3]=seed4;h1[4]=seed5;h1[5]=seed6;h1[6]=seed7;h1[7]=seed8;
+    mixin(unrollPutElement8(k/4));
+    mixin(putRemainder8(k));
+    mixin(finalize8(k));
+    return h1;
+}
 private auto hash(H, Element = H.Element)(string data)
 {
     H hasher;
@@ -595,6 +587,9 @@ unittest{
     assert(hash!MurmurHash3_32("ab")==hash!(MurmurHash3!32)("ab"));
     assert(hash!MurmurHash3_32("abc")==hash!(MurmurHash3!32)("abc"));
     assert(hash!MurmurHash3_32("abcd")==hash!(MurmurHash3!32)("abcd"));
+    assert(hash!MurmurHash3_32("abcd")==murmurhash3_32!4("abcd",0));
+    assert(hash!MurmurHash3_32_4seed("abcd")==murmurhash3_32_4seed!4("abcd",0,0,0,0));
+    assert(hash!MurmurHash3_32_8seed("abcd")==murmurhash3_32_8seed!4("abcd",0,0,0,0,0,0,0,0));
     auto h1=MurmurHash3_32(0);
     auto h2=MurmurHash3_32(1);
     auto h3=MurmurHash3_32(2);
