@@ -1,0 +1,10 @@
+{
+	"name": "bloom",
+	"authors": [
+		"cgregory"
+	],
+	"description": "A minimal D application.",
+	"copyright": "Copyright © 2019, cgregory",
+	"license": "proprietary",
+	"dflags": ["-O3","-mattr=+avx2"]
+}
