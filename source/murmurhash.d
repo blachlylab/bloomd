@@ -1,3 +1,14 @@
+module murmurhash;
+// Based on the implementation in std.digest.murmurhash
+// however optimizations were made to reduce function calls as 
+// we are only using the 32-bit variant of murmurhash3.
+//
+// We also have loop unrolled variants of murmurhash3 for 
+// known length string keys. 
+//
+// There are also 4seed and 8seed versions for using 
+// SIMD instructions to generate 4 or 8 different seeded hashes of the 
+// same string in parallel.
 struct MurmurHash3_32
 {
     enum blockSize = 32; // Number of bits of the hashed value.
@@ -579,9 +590,7 @@ unittest{
     import std.digest.murmurhash:MurmurHash3;
     import std.datetime.stopwatch:benchmark;
     MurmurHash3_32 h;
-    // "a" : "B269253C",
-    // "ab" : "5FD7BF9B",
-    // "abc" : "FA93DDB3",
+    //check that our hash equals the std implementation
     assert(hash!MurmurHash3_32("")==hash!(MurmurHash3!32)(""));
     assert(hash!MurmurHash3_32("a")==hash!(MurmurHash3!32)("a"));
     assert(hash!MurmurHash3_32("ab")==hash!(MurmurHash3!32)("ab"));
