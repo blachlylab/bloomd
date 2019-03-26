@@ -1,4 +1,4 @@
-module bloom;
+module bloomd.bloom;
 
 import std.bitmanip:BitArray;
 import std.math:log,pow,ceil;

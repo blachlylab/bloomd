@@ -1,4 +1,4 @@
-module murmurhash;
+module bloomd.murmurhash;
 // Based on the implementation in std.digest.murmurhash
 // however optimizations were made to reduce function calls as 
 // we are only using the 32-bit variant of murmurhash3.
