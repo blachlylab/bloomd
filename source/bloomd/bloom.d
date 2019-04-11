@@ -3,7 +3,7 @@ module bloomd.bloom;
 import std.bitmanip:BitArray;
 import std.math:log,pow,ceil;
 import std.conv:to;
-import murmurhash;
+import bloomd.murmurhash;
 //! A simple bloom filter implementation.
 //! A bloom filter is a compact probabilistic data structure that
 //! affords storage savings in favor of a chance of false positives
@@ -31,7 +31,8 @@ struct BloomFilter{
         bool[] t=new bool[array_size];
         arr=BitArray(t);
         num_hashes=(((array_size.to!double) / (expected_inserts.to!double)) * double(2.0).log()).ceil().to!uint;
-        num_hashes=num_hashes+num_hashes%8;
+        if(num_hashes%8!=0)
+            num_hashes=num_hashes+(8-num_hashes%8);
     }
     void insert(string value){
         static if(__traits(targetHasFeature, "sse2")){
@@ -136,7 +137,8 @@ struct BloomFilterK(ulong k){
         bool[] t=new bool[array_size];
         arr=BitArray(t);
         num_hashes=(((array_size.to!double) / (expected_inserts.to!double)) * double(2.0).log()).ceil().to!uint;
-        num_hashes=num_hashes+num_hashes%8;
+        if(num_hashes%8!=0)
+            num_hashes=((num_hashes/8)+1)*8;
     }
     void insert(string value){
         static if(__traits(targetHasFeature, "sse2")){
