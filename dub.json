@@ -6,5 +6,5 @@
 	"description": "A minimal D application.",
 	"copyright": "Copyright © 2019, cgregory",
 	"license": "proprietary",
-	"dflags": ["-O3","-mcpu=native"]
+	"dflags": ["-mcpu=native"]
 }
