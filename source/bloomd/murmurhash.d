@@ -126,48 +126,307 @@ string putElementStrMix(){
 string unrollPutElement(ulong n){
     import std.conv:to;
     string ret;
-    for(auto i=0;i<n;i++){
-        ret=ret~"block=*cast(uint*)(str["~i.to!string~"*4.."~i.to!string~"*4+4].ptr);\n"~putElementStrMix;
+    static if(__traits(targetHasFeature, "sse2")){
+        static if(__traits(targetHasFeature, "avx2")){
+            for(auto i=0;i<n/4;i++){
+                ret=ret~"block=*cast(uint*)(str["~i.to!string~"*4.."~i.to!string~"*4+4].ptr);\n"~
+                "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;block_arr[4]=block;block_arr[5]=block;block_arr[6]=block;block_arr[7]=block;\n"~
+                "block_arr = block_arr * c1;\n"~
+                "block_arr = ((block_arr << ROTSL15) | (block_arr >> ROTSR15));\n"~
+                "block_arr = block_arr * c2;\n"~
+                "h1 ^=block_arr;\n"~
+                "h1 =((h1 << ROTSL13) | (h1 >> ROTSR13));\n"~
+                "h1 = h1 * 5 + 0xe6546b64U;\n"; 
+            }
+        }else{
+            for(auto i=0;i<n/4;i++){
+                ret=ret~"block=*cast(uint*)(str["~i.to!string~"*4.."~i.to!string~"*4+4].ptr);\n"~
+                "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;\n"~
+                "block_arr = block_arr * c1;\n"~
+                "block_arr = ((block_arr << ROTSL15) | (block_arr >> ROTSR15));\n"~
+                "block_arr = block_arr * c2;\n"~
+                "h1 ^=block_arr;\n"~
+                "h1 =((h1 << ROTSL13) | (h1 >> ROTSR13));\n"~
+                "h1 = h1 * 5 + 0xe6546b64U;\n";
+            }
+        }
+    }else{
+        for(auto i=0;i<n/4;i++){
+            ret=ret~"block=*cast(uint*)(str["~i.to!string~"*4.."~i.to!string~"*4+4].ptr);\n"~
+            "block *= c1;\n"~
+            "block = ((block << 15) | (block >> ((uint.sizeof * 8) - 15)));\n"~
+            "block *= c2;\n"~
+            "h1 ^=block;\n"~
+            "h1 =((h1 << 13) | (h1 >> ((uint.sizeof * 8) - 13)));\n"~
+            "h1 = h1 * 5 + 0xe6546b64U;";
+        }
     }
     return ret;
 }
-string putRemainder(ulong n){
+string putElement(string n){
     import std.conv:to;
-    string ret="uint k1 = 0;\n";
-    auto i=n%4;
-    if(i==3){
-        ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"+2] << 16;\n";
-        i--;
-    }else if(i==2){
-        ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"+1] << 8;\n";
-        i--;
-    }else if(i==1){
-        ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"];\n"~
-        "k1 *= c1;\n"~
-        "k1 = ((k1 << 15) | (k1 >> ((uint.sizeof * 8) - 15)));\n"~
-        "k1 *= c2;\n"~
-        "h1 ^= k1;\n";
+    string ret;
+    static if(__traits(targetHasFeature, "sse2")){
+        static if(__traits(targetHasFeature, "avx2")){
+            ret="for(auto i=0;i<"~n~"/4;i++){\n"~
+                "block=*cast(uint*)(str[i*4..i*4+4].ptr);\n"~
+                "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;block_arr[4]=block;block_arr[5]=block;block_arr[6]=block;block_arr[7]=block;\n"~
+                "block_arr = block_arr * c1;\n"~
+                "block_arr = ((block_arr << ROTSL15) | (block_arr >> ROTSR15));\n"~
+                "block_arr = block_arr * c2;\n"~
+                "h1 ^=block_arr;\n"~
+                "h1 =((h1 << ROTSL13) | (h1 >> ROTSR13));\n"~
+                "h1 = h1 * 5 + 0xe6546b64U;\n"~ 
+            "}\n";
+        }else{
+            ret="for(auto i=0;i<"~n~"/4;i++){\n"~
+                "block=*cast(uint*)(str[i*4..i*4+4].ptr);\n"~
+                "block_arr[0]=block;block_arr[1]=block;block_arr[2]=block;block_arr[3]=block;\n"~
+                "block_arr = block_arr * c1;\n"~
+                "block_arr = ((block_arr << ROTSL15) | (block_arr >> ROTSR15));\n"~
+                "block_arr = block_arr * c2;\n"~
+                "h1 ^=block_arr;\n"~
+                "h1 =((h1 << ROTSL13) | (h1 >> ROTSR13));\n"~
+                "h1 = h1 * 5 + 0xe6546b64U;\n"~
+            "}\n";
+        }
+    }else{
+        ret="for(auto i=0;i<"~n~"/4;i++){\n"~
+            "block=*cast(uint*)(str[i*4..i*4+4].ptr);\n"~
+            "block *= c1;\n"~
+            "block = ((block << 15) | (block >> ((uint.sizeof * 8) - 15)));\n"~
+            "block *= c2;\n"~
+            "h1 ^=block;\n"~
+            "h1 =((h1 << 13) | (h1 >> ((uint.sizeof * 8) - 13)));\n"~
+            "h1 = h1 * 5 + 0xe6546b64U;\n"~
+        "}\n";
+    }
+    return ret;
+}
+string putRemainder(string n){
+    import std.conv:to;
+    static if(__traits(targetHasFeature, "sse2")){
+        static if(__traits(targetHasFeature, "avx2")){
+            string ret="__vector(uint[8]) k1;\n"~
+            "__vector(uint[8]) k2;\n"~
+            "uint c;\n"~
+            "auto i="~n~"%4;\n"~
+            "auto j="~n~"%4;\n"~
+            "if(i==3){\n"~
+                "c=cast(uint)str[(i-j)+2];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+                "k1 = k1 ^ (k2 << SL16);"~
+                "i--;\n"~
+            "}else if(i==2){\n"~
+                "c=cast(uint)str[(i-j)+1];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+                "k1 = k1 ^ (k2 << SL8);";
+                "i--;\n"~
+            "}else if(i==1){\n"~
+                "c=cast(uint)str[(i-j)];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+                "k1 = k1 ^ k2;\n"~
+                "k1 *= c1;\n"~
+                "k1 = ((k1 << ROTSL15) | (k1 >> ROTSR15));\n"~
+                "k1 *= c2;\n"~
+                "h1 ^= k1;\n"~
+            "}\n";
+        }else{
+            string ret="__vector(uint[4]) k1;\n"~
+            "__vector(uint[4]) k2;\n"~
+            "uint c;\n"~
+            "auto i="~n~"%4;\n"~
+            "auto j="~n~"%4;\n"~
+            "if(i==3){\n"~
+                "c=cast(uint)str[(i-j)+2];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+                "k1 = k1 ^ (k2 << SL16);"~
+                "i--;\n"~
+            "}else if(i==2){\n"~
+                "c=cast(uint)str[(i-j)+1];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+                "k1 = k1 ^ (k2 << SL8);"~
+                "i--;\n"~
+            "}else if(i==1){\n"~
+                "c=cast(uint)str[(i-j)];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+                "k1 = k1 ^ k2;\n"~
+                "k1 *= c1;\n"~
+                "k1 = ((k1 << ROTSL15) | (k1 >> ROTSR15));\n"~
+                "k1 *= c2;\n"~
+                "h1 ^= k1;\n"~
+            "}\n";
+        }
+    }else{
+        string ret="uint k1 = 0;\n"~
+        "auto i="~n~"%4;\n"~
+        "auto j="~n~"%4;\n"~
+        "if(i==3){\n"~
+            "k1 ^= cast(ubyte)str[(i-j)+2] << 16;\n";
+            "i--;\n"~
+        "}else if(i==2){\n"~
+            "k1 ^= cast(ubyte)str[(i-j)+1] << 8;\n";
+            "i--;\n"~
+        "}else if(i==1){\n"~
+            "k1 ^= cast(ubyte)str[(i-j)];\n"~
+            "k1 *= c1;\n"~
+            "k1 = ((k1 << 15) | (k1 >> ((uint.sizeof * 8) - 15)));\n"~
+            "k1 *= c2;\n"~
+            "h1 ^= k1;\n"~
+        "}\n";
+    }
+    return ret;
+}
+string unrollPutRemainder(ulong n){
+    import std.conv:to;
+    static if(__traits(targetHasFeature, "sse2")){
+        static if(__traits(targetHasFeature, "avx2")){
+            string ret="__vector(uint[8]) k1;\n"~
+            "__vector(uint[8]) k2;\n"~
+            "uint c;\n";
+            auto i=n%4;
+            if(i==3){
+                ret~="c=cast(uint)str["~(n-n%4).to!string~"+2];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+                "k1 = k1 ^ (k2 << SL16);";
+                i--;
+            }else if(i==2){
+                ret~="c=cast(uint)str["~(n-n%4).to!string~"+1];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+                "k1 = k1 ^ (k2 << SL8);";
+                i--;
+            }else if(i==1){
+                ret~="c=cast(uint)str["~(n-n%4).to!string~"];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;k2[4]=c;k2[5]=c;k2[6]=c;k2[7]=c;\n"~
+                "k1 = k1 ^ k2;\n"~
+                "k1 *= c1;\n"~
+                "k1 = ((k1 << ROTSL15) | (k1 >> ROTSR15));\n"~
+                "k1 *= c2;\n"~
+                "h1 ^= k1;\n";
+            }
+        }else{
+            string ret="__vector(uint[4]) k1;\n"~
+            "__vector(uint[4]) k2;\n"~
+            "uint c;\n";
+            auto i=n%4;
+            if(i==3){
+                ret~="c=cast(uint)str["~(n-n%4).to!string~"+2];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+                "k1 = k1 ^ (k2 << SL16);";
+                i--;
+            }else if(i==2){
+                ret~="c=cast(uint)str["~(n-n%4).to!string~"+1];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+                "k1 = k1 ^ (k2 << SL8);";
+                i--;
+            }else if(i==1){
+                ret~="c=cast(uint)str["~(n-n%4).to!string~"];\n"~
+                "k2[0]=c;k2[1]=c;k2[2]=c;k2[3]=c;\n"~
+                "k1 = k1 ^ k2;\n"~
+                "k1 *= c1;\n"~
+                "k1 = ((k1 << ROTSL15) | (k1 >> ROTSR15));\n"~
+                "k1 *= c2;\n"~
+                "h1 ^= k1;\n";
+            }
+        }
+    }else{
+        string ret="uint k1 = 0;\n";
+        auto i=n%4;
+        if(i==3){
+            ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"+2] << 16;\n";
+            i--;
+        }else if(i==2){
+            ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"+1] << 8;\n";
+            i--;
+        }else if(i==1){
+            ret~="k1 ^= cast(ubyte)str["~(n-n%4).to!string~"];\n"~
+            "k1 *= c1;\n"~
+            "k1 = ((k1 << 15) | (k1 >> ((uint.sizeof * 8) - 15)));\n"~
+            "k1 *= c2;\n"~
+            "h1 ^= k1;\n";
+        }
     }
     return ret;
 }
 string finalize(ulong k) {
     import std.conv:to;
-    return "h1 ^= "~k.to!string~";\n"~
-    "h1 ^= h1 >> 16;\n"~
-    "h1 *= 0x85ebca6b;\n"~
-    "h1 ^= h1 >> 13;\n"~
-    "h1 *= 0xc2b2ae35;\n"~
-    "h1 ^= h1 >> 16;\n";
+    static if(__traits(targetHasFeature, "sse2")){
+        static if(__traits(targetHasFeature, "avx2")){
+            return "__vector(uint[8]) e=["~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~"];\n"~
+            "h1 ^= e;\n"~
+            "h1 ^= h1 >> SL16;\n"~
+            "h1 *= 0x85ebca6b;\n"~
+            "h1 ^= h1 >> SL13;\n"~
+            "h1 *= 0xc2b2ae35;\n"~
+            "h1 ^= h1 >> SL16;\n";
+        }else{
+            return "__vector(uint[4]) e=["~k.to!string~","~k.to!string~","~k.to!string~","~k.to!string~"];\n"~
+            "h1 ^= e;\n"~
+            "h1 ^= h1 >> SL16;\n"~
+            "h1 *= 0x85ebca6b;\n"~
+            "h1 ^= h1 >> SL13;\n"~
+            "h1 *= 0xc2b2ae35;\n"~
+            "h1 ^= h1 >> SL16;\n";
+        }
+    }else{
+        return "h1 ^= "~k.to!string~";\n"~
+        "h1 ^= h1 >> 16;\n"~
+        "h1 *= 0x85ebca6b;\n"~
+        "h1 ^= h1 >> 13;\n"~
+        "h1 *= 0xc2b2ae35;\n"~
+        "h1 ^= h1 >> 16;\n";
+    }
 }
 pragma(inline,true)
-auto murmurhash3_32(ulong k)(string str,uint seed){
+auto murmurhash3_32(string str,uint seed1=0,uint seed2=0,uint seed3=0,uint seed4=0,uint seed5=0,uint seed6=0,uint seed7=0,uint seed8=0){
+    return murmurhash3_32!0(str, seed1, seed2, seed3, seed4, seed5, seed6, seed7, seed8);
+}
+pragma(inline,true)
+auto murmurhash3_32(ulong k)(string str,uint seed1=0,uint seed2=0,uint seed3=0,uint seed4=0,uint seed5=0,uint seed6=0,uint seed7=0,uint seed8=0){
     assert(str.length==k);
-    enum uint c1 = 0xcc9e2d51;
-    enum uint c2 = 0x1b873593;
-    uint h1=seed;
-    uint block;
-    mixin(unrollPutElement(k/4));
-    mixin(putRemainder(k));
+    static if(__traits(targetHasFeature, "sse2")){
+        static if(__traits(targetHasFeature, "avx2")){
+            uint c1 = 0xcc9e2d51;
+            uint c2 = 0x1b873593;
+            __vector(uint[8]) SL16 = [16,16,16,16,16,16,16,16];
+            __vector(uint[8]) SL13 = [13,13,13,13,13,13,13,13];
+            __vector(uint[8]) SL8 = [8,8,8,8,8,8,8,8];
+            __vector(uint[8]) ROTSL15 = [15,15,15,15,15,15,15,15];
+            __vector(uint[8]) ROTSR15 = [(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15];
+            __vector(uint[8]) ROTSL13 = [13,13,13,13,13,13,13,13];
+            __vector(uint[8]) ROTSR13 = [(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13];
+            __vector(uint[8]) h1;
+            __vector(uint[8]) block_arr;
+            uint block;
+            h1[0]=seed1;h1[1]=seed2;h1[2]=seed3;h1[3]=seed4;h1[4]=seed5;h1[5]=seed6;h1[6]=seed7;h1[7]=seed8;
+        }else{
+            uint c1 = 0xcc9e2d51;
+            uint c2 = 0x1b873593;
+            __vector(uint[4]) SL16 = [16,16,16,16];
+            __vector(uint[4]) SL13 = [13,13,13,13];
+            __vector(uint[4]) SL8 = [8,8,8,8];
+            __vector(uint[4]) ROTSL15 = [15,15,15,15];
+            __vector(uint[4]) ROTSR15 = [(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15,(uint.sizeof * 8) - 15];
+            __vector(uint[4]) ROTSL13 = [13,13,13,13];
+            __vector(uint[4]) ROTSR13 = [(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13,(uint.sizeof * 8) - 13];
+            __vector(uint[4]) h1;
+            __vector(uint[4]) block_arr;
+            uint block;
+            h1[0]=seed1;h1[1]=seed2;h1[2]=seed3;h1[3]=seed4;
+        }
+    }else{
+        enum uint c1 = 0xcc9e2d51;
+        enum uint c2 = 0x1b873593;
+        uint h1=seed1;
+        uint block;
+    }
+    static if(k==0){
+        mixin(putElement("str.length"));
+        mixin(putRemainder("str.length"));
+    }else{
+        mixin(unrollPutElement(k));
+        mixin(unrollPutRemainder(k));
+    }
     mixin(finalize(k));
     return h1;
 }
