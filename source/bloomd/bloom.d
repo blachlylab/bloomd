@@ -11,6 +11,11 @@ import bloomd.murmurhash;
 //! http://en.wikipedia.org/wiki/Bloom_filter.
 //! By: Brian A. Madden - brian.a.madden@gmail.com
 //  design stolen from https://github.com/jonalmeida/bloom-filter
+
+auto bloomFilter(ulong expected_inserts,double fpr){
+    return BloomFilter!0(expected_inserts, fpr);
+}
+
 struct BloomFilter(ulong k=0){
     BitArray arr;
     uint array_size;
