@@ -12,15 +12,24 @@ import bloomd.murmurhash;
 //! By: Brian A. Madden - brian.a.madden@gmail.com
 //  design stolen from https://github.com/jonalmeida/bloom-filter
 
+
+//create Bloom filter that accepts any size input
 auto bloomFilter(ulong expected_inserts,double fpr){
     return BloomFilter!0(expected_inserts, fpr);
 }
 
+//create Bloom filter that only accepts size k input
+auto bloomFilter(ulong k)(ulong expected_inserts,double fpr){
+    return BloomFilter!k(expected_inserts, fpr);
+}
+
+//Struct for Bloom filter with input size k
 struct BloomFilter(ulong k=0){
     BitArray arr;
     uint array_size;
     uint num_hashes;
-    // Figure out necessary size of bit_vec (m bits)
+    this(ulong expected_inserts,double fpr){
+        // Figure out necessary size of bit_vec (m bits)
         // m = -(n ln(p)) / ln(2)^2
 
         // Figure out necessary number of hash functions (k)
@@ -30,21 +39,23 @@ struct BloomFilter(ulong k=0){
         // p = fpr
 
         // Verify that fpr != 0, this will cause errors
-    this(ulong expected_inserts,double fpr){
         assert(fpr!=0.0);
         array_size=((-1.0 * (expected_inserts.to!double) * fpr.log) / double(2.0).log.pow(2.0)).ceil().to!uint;
         bool[] t=new bool[array_size];
         arr=BitArray(t);
         num_hashes=(((array_size.to!double) / (expected_inserts.to!double)) * double(2.0).log()).ceil().to!uint;
+        
+        //we make the number of hashes divisible by 8
+        //TODO: find out the effects on the fpr that this has
         if(num_hashes%8!=0)
             num_hashes=num_hashes+(8-num_hashes%8);
     }
     void insert(string value){
+        static if(k!=0) assert(value.length==k);
         static if(__traits(targetHasFeature, "sse2")){
             static if(__traits(targetHasFeature, "avx2")){
                 for(auto i=0;i<num_hashes-8;i+=8){
-                    static if(k>0) auto res=murmurhash3_32_8seed!k(value,i,i+1,i+2,i+3,i+4,i+5,i+6,i+7);
-                    else auto res=MurmurHash3_32_8seed(i,i+1,i+2,i+3,i+4,i+5,i+6,i+7).hash(value);
+                    auto res=murmurhash3_32!k(value,i,i+1,i+2,i+3,i+4,i+5,i+6,i+7);
                     __vector(ulong[8]) r;
                     r[0]=res[0];r[1]=res[1];r[2]=res[2];r[3]=res[3];
                     r[4]=res[4];r[5]=res[5];r[6]=res[6];r[7]=res[7];
@@ -62,8 +73,7 @@ struct BloomFilter(ulong k=0){
                 }
             }else{
                 for(auto i=0;i<num_hashes-4;i+=4){
-                    static if(k>0) auto res=murmurhash3_32_4seed!k(value,i,i+1,i+2,i+3);
-                    else auto res=MurmurHash3_32_4seed(i,i+1,i+2,i+3).hash(value);
+                    auto res=murmurhash3_32!k(value,i,i+1,i+2,i+3);
                     __vector(ulong[4]) r;
                     r[0]=res[0];r[1]=res[1];r[2]=res[2];r[3]=res[3];
                     r *=cast(ulong) array_size;
@@ -77,19 +87,18 @@ struct BloomFilter(ulong k=0){
             }
         }else{
             for(auto i=0;i<num_hashes;i++){
-                static if(k>0) auto res=murmurhash3_32!k(value,i);
-                else auto res=MurmurHash3_32(i).hash(value);
+                auto res=murmurhash3_32!k(value,i);
                 res=cast(uint)((cast(ulong)  res* cast(ulong) array_size) >> 32);
                 arr[res]=true;
             }
         }
     }
     bool maybe_present(string value){
+        static if(k!=0) assert(value.length==k);
         static if(__traits(targetHasFeature, "sse2")){
             static if(__traits(targetHasFeature, "avx2")){
                 for(auto i=0;i<num_hashes-8;i+=8){
-                    static if(k>0) auto res=murmurhash3_32_8seed!k(value,i,i+1,i+2,i+3,i+4,i+5,i+6,i+7);
-                    else auto res=MurmurHash3_32_8seed(i,i+1,i+2,i+3,i+4,i+5,i+6,i+7).hash(value);
+                    auto res=murmurhash3_32!k(value,i,i+1,i+2,i+3,i+4,i+5,i+6,i+7);
                     __vector(ulong[8]) r;
                     r[0]=res[0];r[1]=res[1];r[2]=res[2];r[3]=res[3];
                     r[4]=res[4];r[5]=res[5];r[6]=res[6];r[7]=res[7];
@@ -103,8 +112,7 @@ struct BloomFilter(ulong k=0){
                 }
             }else{
                 for(auto i=0;i<num_hashes-4;i+=4){
-                    static if(k>0) auto res=murmurhash3_32_4seed!k(value,i,i+1,i+2,i+3);
-                    else auto res=MurmurHash3_32_4seed(i,i+1,i+2,i+3).hash(value);
+                    auto res=murmurhash3_32!k(value,i,i+1,i+2,i+3);
                     __vector(ulong[4]) r;
                     r[0]=res[0];r[1]=res[1];r[2]=res[2];r[3]=res[3];
                     r *=cast(ulong) array_size;
@@ -118,8 +126,7 @@ struct BloomFilter(ulong k=0){
             return true;
         }else{
             for(auto i=0;i<num_hashes;i++){
-                static if(k>0) auto res=murmurhash3_32!k(value,i);
-                else auto res=MurmurHash3_32(i).hash(value);
+                auto res=murmurhash3_32!k(value,i);
                 res=cast(uint)((cast(ulong)  res* cast(ulong) array_size) >> 32);
                 if(arr[res]^1){
                     return false;
@@ -131,9 +138,7 @@ struct BloomFilter(ulong k=0){
 }
 unittest{
     import std.stdio;
-    writeln("SSE ",__traits(targetHasFeature, "sse2"));
-    writeln("AVX2 ",__traits(targetHasFeature, "avx2"));
-    BloomFilter!() bf =BloomFilter!()(2,0.001);
+    auto bf =bloomFilter(2,0.001);
     assert(bf.maybe_present("not")==false);
     assert(bf.maybe_present("foo")==false);
     assert(bf.maybe_present("asbdfasdfasdfasd")==false);
@@ -144,51 +149,17 @@ unittest{
     import std.datetime.stopwatch:StopWatch,AutoStart;
     import std.stdio;
     StopWatch s = StopWatch(AutoStart.no);
-    auto bf=BloomFilter!()(1000,0.01);
+    auto bf=bloomFilter(10000,0.001);
     s.start;
     for(auto i=0;i<10_000;i++){
         bf.insert("GACTAGCTACGATCC");
     }
     s.peek.total!"usecs".writeln;
     s.reset;
-    auto bf2=BloomFilter!()(1000,0.01);
+    auto bf2=BloomFilter!15(10000,0.001);
     s.start;
     for(auto i=0;i<10_000;i++){
         bf2.insert("GACTAGCTACGATCC");
     }
     s.peek.total!"usecs".writeln;
-    s.reset;
-    auto bf3=BloomFilter!()(1000,0.01);
-    s.start;
-    for(auto i=0;i<10_000;i++){
-        bf3.insert("GACTAGCTACGATCC");
-    }
-    s.peek.total!"usecs".writeln;
-    s.reset;
-}
-unittest{
-    import std.datetime.stopwatch:StopWatch,AutoStart;
-    import std.stdio;
-    StopWatch s = StopWatch(AutoStart.no);
-    auto bf=BloomFilter!15(1000,0.01);
-    s.start;
-    for(auto i=0;i<10_000;i++){
-        bf.insert("GACTAGCTACGATCC");
-    }
-    s.peek.total!"usecs".writeln;
-    s.reset;
-    auto bf2=BloomFilter!15(1000,0.01);
-    s.start;
-    for(auto i=0;i<10_000;i++){
-        bf2.insert("GACTAGCTACGATCC");
-    }
-    s.peek.total!"usecs".writeln;
-    s.reset;
-    auto bf3=BloomFilter!15(1000,0.01);
-    s.start;
-    for(auto i=0;i<10_000;i++){
-        bf3.insert("GACTAGCTACGATCC");
-    }
-    s.peek.total!"usecs".writeln;
-    s.reset;
 }
