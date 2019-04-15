@@ -1,10 +1,9 @@
 {
 	"name": "bloomd",
 	"authors": [
-		"cgregory"
+		"Charles Gregory"
 	],
-	"description": "A minimal D application.",
-	"copyright": "Copyright © 2019, cgregory",
-	"license": "proprietary",
-	"dflags": ["-mcpu=native"]
+	"description": "Vectorized bloom filter implementation for Dlang.",
+	"copyright": "Copyright © 2019, Charles Gregory",
+	"license": "MIT"
 }
