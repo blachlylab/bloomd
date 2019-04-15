@@ -336,15 +336,24 @@ unittest{
     import std.digest.murmurhash:MurmurHash3;
     import std.datetime.stopwatch:benchmark;
     //check that our hash equals the std implementation
-    assert(murmurhash3_32("")[0]==hash!(MurmurHash3!32)(""));
-    assert(murmurhash3_32("a")[0]==hash!(MurmurHash3!32)("a"));
-    assert(murmurhash3_32("ab")[0]==hash!(MurmurHash3!32)("ab"));
-    assert(murmurhash3_32("abc")[0]==hash!(MurmurHash3!32)("abc"));
-    assert(murmurhash3_32("abcd")[0]==hash!(MurmurHash3!32)("abcd"));
-    assert(murmurhash3_32!1("a")[0]==hash!(MurmurHash3!32)("a"));
-    assert(murmurhash3_32!2("ab")[0]==hash!(MurmurHash3!32)("ab"));
-    assert(murmurhash3_32!3("abc")[0]==hash!(MurmurHash3!32)("abc"));
-    assert(murmurhash3_32!4("abcd")[0]==hash!(MurmurHash3!32)("abcd"));
+    auto res=murmurhash3_32("");
+    assert(res[0]==hash!(MurmurHash3!32)(""));
+    res=murmurhash3_32("a");
+    assert(res[0]==hash!(MurmurHash3!32)("a"));
+    res=murmurhash3_32("ab");
+    assert(res[0]==hash!(MurmurHash3!32)("ab"));
+    res=murmurhash3_32("abc");
+    assert(res[0]==hash!(MurmurHash3!32)("abc"));
+    res=murmurhash3_32("abcd");
+    assert(res[0]==hash!(MurmurHash3!32)("abcd"));
+    res=murmurhash3_32!1("a");
+    assert(res[0]==hash!(MurmurHash3!32)("a"));
+    res=murmurhash3_32!2("ab");
+    assert(res[0]==hash!(MurmurHash3!32)("ab"));
+    res=murmurhash3_32!3("abc");
+    assert(res[0]==hash!(MurmurHash3!32)("abc"));
+    res=murmurhash3_32!4("abcd");
+    assert(res[0]==hash!(MurmurHash3!32)("abcd"));
     static if(__traits(targetHasFeature, "sse2")){
         static if(__traits(targetHasFeature, "avx2")){
             __vector(uint[8]) v1;

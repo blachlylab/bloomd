@@ -108,7 +108,7 @@ unittest{
     writeln("Loaded AA:",s.peek.total!"usecs"," usecs");
     s.reset;
     s.start;
-    auto b=loadBloom("source/test/darkweb2017-top10000.txt",5000,5_000,0.001);
+    auto b=loadBloom("source/test/darkweb2017-top10000.txt",5000,10_000,0.01);
     writeln("Loaded BF:",s.peek.total!"usecs"," usecs");
     s.reset;
     s.start;
@@ -137,7 +137,7 @@ unittest{
     writeln("Loaded AA:",s.peek.total!"usecs"," usecs");
     s.reset;
     s.start;
-    auto b=loadBloom("source/test/10-million-password-list-top-1000000.txt",500_000,500_000,0.001);
+    auto b=loadBloom("source/test/10-million-password-list-top-1000000.txt",500_000,500_000,0.01);
     writeln("Loaded BF:",s.peek.total!"usecs"," usecs");
     s.reset;
     s.start;
